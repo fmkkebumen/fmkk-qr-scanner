@@ -1,0 +1,1 @@
+# fmkk-qr-scanner
