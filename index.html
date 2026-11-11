@@ -1,0 +1,245 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+
+  <title>Scanner QR - PTK Expo FMKK</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f7f5;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .card {
+      max-width: 480px;
+      margin: 30px auto;
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 3px 15px rgba(0,0,0,.08);
+      text-align: center;
+    }
+
+    h2 {
+      color: #155e45;
+    }
+
+    p {
+      color: #555;
+      line-height: 1.5;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #155e45;
+      color: white;
+      font-size: 16px;
+      margin-top: 12px;
+    }
+
+    button:disabled {
+      opacity: .5;
+    }
+
+    #reader {
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    #status {
+      margin-top: 18px;
+      padding: 15px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+
+    <h2>PTK Expo FMKK 2026</h2>
+    <h3>QR Scanner</h3>
+
+    <p>
+      Arahkan kamera ke QR Code e-ticket peserta.
+    </p>
+
+    <button id="startBtn">
+      Aktifkan Kamera
+    </button>
+
+    <div id="reader"></div>
+
+    <div id="status">
+      Menunggu kamera diaktifkan...
+    </div>
+
+    <button id="againBtn" hidden>
+      Scan Peserta Berikutnya
+    </button>
+
+  </div>
+
+  <script>
+
+    let qrScanner = null;
+    let processing = false;
+
+    const startBtn =
+      document.getElementById('startBtn');
+
+    const againBtn =
+      document.getElementById('againBtn');
+
+    const statusBox =
+      document.getElementById('status');
+
+
+    async function startScanner() {
+
+      if (processing) return;
+
+      if (!window.isSecureContext) {
+        statusBox.textContent =
+          'Website harus dibuka menggunakan HTTPS.';
+        return;
+      }
+
+      if (!navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+        statusBox.textContent =
+          'Browser tidak mendukung akses kamera.';
+        return;
+      }
+
+      if (!window.opener || window.opener.closed) {
+        statusBox.textContent =
+          'Buka scanner melalui tombol Buka Scanner di Dashboard Panitia.';
+        return;
+      }
+
+      startBtn.disabled = true;
+
+      statusBox.textContent =
+        'Sedang mengaktifkan kamera...';
+
+      try {
+
+        qrScanner = new Html5Qrcode('reader');
+
+        await qrScanner.start(
+          { facingMode: 'environment' },
+
+          {
+            fps: 10,
+            qrbox: {
+              width: 250,
+              height: 250
+            }
+          },
+
+          async function(decodedText) {
+
+            if (processing) return;
+            processing = true;
+
+            const ticketCode =
+              String(decodedText).trim();
+
+            statusBox.textContent =
+              'QR berhasil dibaca!\nMengirim kode ke dashboard...';
+
+            try {
+              await qrScanner.stop();
+              qrScanner.clear();
+            } catch (error) {
+              console.log(error);
+            }
+
+            if (!window.opener ||
+                window.opener.closed) {
+
+              statusBox.textContent =
+                'Dashboard panitia sudah ditutup. Buka ulang dashboard.';
+              processing = false;
+              return;
+            }
+
+            window.opener.postMessage(
+              {
+                source: 'fmkk-qr-scanner',
+                type: 'QR_SCANNED',
+                ticketCode: ticketCode
+              },
+              '*'
+            );
+
+            statusBox.textContent =
+              'Kode QR berhasil dikirim!\n' +
+              'Kembali ke tab Dashboard Panitia untuk melihat hasil validasi.';
+
+            startBtn.hidden = true;
+            againBtn.hidden = false;
+
+          }
+
+        );
+
+        statusBox.textContent =
+          'Kamera aktif. Silakan scan QR Code peserta.';
+
+      } catch (error) {
+
+        console.error(error);
+
+        statusBox.textContent =
+          'Kamera gagal dibuka: ' + error.message;
+
+        startBtn.disabled = false;
+        processing = false;
+
+      }
+
+    }
+
+
+    startBtn.addEventListener(
+      'click',
+      startScanner
+    );
+
+
+    againBtn.addEventListener(
+      'click',
+      function() {
+
+        processing = false;
+
+        againBtn.hidden = true;
+        startBtn.hidden = false;
+        startBtn.disabled = false;
+
+        startScanner();
+
+      }
+    );
+
+  </script>
+
+</body>
+</html>
